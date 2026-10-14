@@ -1,0 +1,66 @@
+{
+  "clock_identity": "Календарные часы Миланковича — Павильон Девы",
+  "version": "1.0.0",
+  "system_constants": {
+    "precession_full_cycle_years": 25920.0,
+    "zodiac_era_duration_years": 2160.0,
+    "axial_tilt_target_deg": 66.6,
+    "equator_orbital_speed_mph": 66600.0
+  },
+  "solar_calibration_nodes": {
+    "december_solstice": {
+      "repre_name": "Рождество Христово (Sol Invictus)",
+      "astronomy_phase": "Минимум Солнца / Зимнее солнцестояние",
+      "axial_angle_delta": 0.0,
+      "frequency_modulation": "Запуск возврата светового потока"
+    },
+    "january_perihelion": {
+      "repre_name": "Крещение Господне",
+      "astronomy_phase": "Вхождение Земли в ледяную воду / Перигелий",
+      "axial_angle_delta": 11.25,
+      "frequency_modulation": "Акустический и полевой затвор плотности воды"
+    },
+    "august_anabiosis": {
+      "repre_name": "Успение Пресвятой Богородицы",
+      "astronomy_phase": "Уход созвездия Девы в солнечную тень",
+      "axial_angle_delta": 240.0,
+      "frequency_modulation": "Анабиоз вегетационных контуров, переработка годового гумуса"
+    },
+    "august_transfiguration": {
+      "repre_name": "Преображение Господне (19 августа)",
+      "astronomy_phase": "Изменение спектра излучения / Смена параметров Солнца",
+      "axial_angle_delta": 243.3,
+      "frequency_modulation": "Сдвиг фазы в холодный белый спектр, ионизация Персеид"
+    },
+    "september_equinox": {
+      "repre_name": "Рождество Пресвятой Богородицы (21 сентября)",
+      "astronomy_phase": "Квантовый старт Светового Процессора Девы / Осеннее равноденствие",
+      "axial_angle_delta": 270.0,
+      "frequency_modulation": "Калибровка силового креста осей, перевод энергии пробоев в лад"
+    },
+    "october_shield": {
+      "repre_name": "Покров Пресвятой Богородицы (14 октября)",
+      "astronomy_phase": "Гелиактический восход Спики",
+      "axial_angle_delta": 292.5,
+      "frequency_modulation": "Разворачивание защитной электромагнитной рамки S.V.E.T. на зимний период"
+    }
+  },
+  "metatron_nodes_8point": {
+    "description": "Узел Метатрона — 8-точечная система объемной непрерывности Единого Поля (Восьмой день)",
+    "coordinates_matrix_6x6": [
+      [1.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+      [0.0, 1.0, 0.0, 0.0, 1.0, 0.0],
+      [0.0, 0.0, 1.0, 1.0, 0.0, 0.0],
+      [0.0, 0.0, 1.0, 1.0, 0.0, 0.0],
+      [0.0, 1.0, 0.0, 0.0, 1.0, 0.0],
+      [1.0, 0.0, 0.0, 0.0, 1.0, 1.0]
+    ]
+  },
+  "action_triggers": {
+    "on_active_synthesis": {
+      "system_buffer": "WIPE_ENTROPY",
+      "triad_tolerance_limit": 1.5,
+      "direct_resource_allocation": "ENFORCE_EROI_GATING"
+    }
+  }
+}

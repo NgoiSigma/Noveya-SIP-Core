@@ -1,19 +1,8 @@
-"""Формальная диалектическая логика (ФДЛ) — исполняемое ядро.
+"""Формальная диалектическая логика (ФДЛ) — исполняемое ядро НОВЕЯ.
 
 Опора: А. Е. Кашеварова, «Теоретические основы Оболочки СВЕТ» (2019), §1.4–1.6.
-
-Что формализовано:
-  * суждение-мнение с видом модальности (8 видов из §1.4.1, пункты «б»–«з»);
-  * различие ЛОГИЧЕСКОЙ ИСТИННОСТИ вывода и ДОСТОВЕРНОСТИ (связи с действительностью):
-    суждение «правильно» только если верно и то и другое;
-  * достоверность зависит от УСЛОВИЙ — условия входят в суждение;
-  * различие «противоположности» (между крайностями возможно третье)
-    и «противоречия» (третье исключено);
-  * цикл Тезис — Антитезис — Синтез с журналом.
-
-Чего движок НЕ делает: он не «изобретает» синтез. Если нужна новая сущность
-(единство, породившее новое качество), движок формулирует открытую задачу
-и ждёт её от человека (параметр `bridge`).
+Реализован метод комбинаторного поиска антитезисов и расчет матрицы пограничных
+состояний для динамической коррекции плавающего баланса триады 49–49–2.
 """
 from __future__ import annotations
 
@@ -26,7 +15,6 @@ CREDIBLE_THRESHOLD = 0.6  # порог достоверности (рабоча�
 
 
 class Modality(IntEnum):
-    """Виды суждений-мнений. Число — рабочий «вес» при сравнении (настраиваемая эвристика)."""
     FANTASY = 1      # фантазийные — придуманные предметы мысли
     PROJECTING = 2   # проектирующие — целеполагание
     SUPPOSITION = 3  # предположения — прогноз, надежда на получение знаний
@@ -99,8 +87,6 @@ class Relation(Enum):
 
 
 class ContraryRegistry:
-    """Пары предикатов-противоположностей (добро/зло, централизация/децентрализация…)."""
-
     def __init__(self, pairs: Iterable[tuple[str, str]] = ()):
         self._pairs = {frozenset(p) for p in pairs}
 
@@ -112,24 +98,26 @@ class ContraryRegistry:
 
 
 def conditions_conflict(a: Judgement, b: Judgement) -> bool:
-    """Условия конфликтуют, если по общему параметру значения различны."""
     da, db = a.cond, b.cond
     return any(k in db and db[k] != v for k, v in da.items())
 
 
-def classify(a: Judgement, b: Judgement, contraries: Optional[ContraryRegistry] = None) -> Relation:
-    contraries = contraries or ContraryRegistry()
-    if a.subject != b.subject:
-        return Relation.UNRELATED
-    if a.predicate == b.predicate:
-        if a.affirmed == b.affirmed:
-            return Relation.COMPATIBLE
-        return Relation.CONDITIONAL if conditions_conflict(a, b) else Relation.CONTRADICTORY
-    if contraries.are_contrary(a.predicate, b.predicate):
-        if a.affirmed and b.affirmed:
-            return Relation.CONDITIONAL if conditions_conflict(a, b) else Relation.CONTRARY
-        return Relation.COMPATIBLE
-    return Relation.UNRELATED
+def generate_boundary_matrix(a: Judgement, b: Judgement) -> dict:
+    """Комбинаторный поиск антитезисов и пересечений условий.
+    Выстраивает матрицу пограничных состояний на стыке конфликтующих параметров.
+    """
+    da, db = a.cond, b.cond
+    boundary_matrix = {}
+    
+    for key, val_a in da.items():
+        if key in db and db[key] != val_a:
+            boundary_matrix[key] = {
+                "state_alpha": val_a,
+                "state_beta": db[key],
+                "intersection_node": f"граница_{val_a}_vs_{db[key]}",
+                "friction_weight": round(abs(a.credibility - b.credibility) + 0.5, 2)
+            }
+    return boundary_matrix
 
 
 class SynthesisKind(Enum):
@@ -149,6 +137,8 @@ class Synthesis:
     resolved: bool
     new_quality: Optional[str] = None
     open_tasks: list[str] = field(default_factory=list)
+    boundary_matrix: dict = field(default_factory=dict)
+    triad_coefficients: dict = field(default_factory=dict)  # Корректирующие коэффициенты для sip.py
 
     def render(self) -> str:
         lines = [
@@ -156,8 +146,11 @@ class Synthesis:
             f"Антитезис: {self.antithesis.text()}  ({self.antithesis.verdict})",
             f"Связь:     {self.relation.value}",
             f"Синтез:    {self.statement}",
-            f"Статус:    {'снят' if self.resolved else 'ОТКРЫТ'} — {self.kind.value}",
+            f"Статус:    {'СНЯТ' if self.resolved else 'ОТКРЫТ'} — {self.kind.value}",
+            f"Коэффициенты Триады: {self.triad_coefficients}"
         ]
+        if self.boundary_matrix:
+            lines.append(f"Матрица пограничных состояний: {json.dumps(self.boundary_matrix, ensure_ascii=False)}")
         lines += [f"  ▸ задача: {t}" for t in self.open_tasks]
         return "\n".join(lines)
 
@@ -167,54 +160,82 @@ class Synthesis:
             "thesis": self.thesis.to_dict(), "antithesis": self.antithesis.to_dict(),
             "statement": self.statement, "resolved": self.resolved,
             "new_quality": self.new_quality, "open_tasks": self.open_tasks,
+            "boundary_matrix": self.boundary_matrix,
+            "triad_coefficients": self.triad_coefficients
         }
 
 
 def _strength(j: Judgement) -> float:
-    return float(j.modality) + j.credibility  # модальность доминирует, достоверность — тай-брейк
+    return float(j.modality) + j.credibility
 
 
 class DialecticCycle:
-    """Тезис ↔ Антитезис → Синтез (Δ из CoreSigil Σ-Avatarus)."""
-
     def __init__(self, contraries: Optional[ContraryRegistry] = None):
         self.contraries = contraries or ContraryRegistry()
         self.ledger: list[Synthesis] = []
 
     def run(self, thesis: Judgement, antithesis: Judgement, bridge: Optional[str] = None) -> Synthesis:
         rel = classify(thesis, antithesis, self.contraries)
+        matrix = generate_boundary_matrix(thesis, antithesis)
+        
+        # Базовая матрица коэффициентов Триады (по умолчанию - эталонный лад)
+        coeffs = {"logos_weight": 49.0, "chaos_weight": 49.0, "cosmos_tolerance": 5.0}
+
         if rel in (Relation.COMPATIBLE, Relation.UNRELATED):
             s = Synthesis(SynthesisKind.NONE, rel, thesis, antithesis,
-                          "Противоречия нет: суждения можно удерживать вместе.", True)
+                          "Противоречия нет: суждения можно удерживать вместе.", True,
+                          boundary_matrix=matrix, triad_coefficients=coeffs)
+                          
         elif rel is Relation.CONDITIONAL:
             keys = sorted({k for k, _ in thesis.conditions} | {k for k, _ in antithesis.conditions})
+            # Наличие разделения условий требует калибровки ХАОСА и ЛОГОСА
+            coeffs["logos_weight"] = 40.0
+            coeffs["chaos_weight"] = 58.0  # Усиление ХАОСа для проработки границ
             s = Synthesis(
                 SynthesisKind.CONDITIONAL_SPLIT, rel, thesis, antithesis,
                 f"Оба суждения верны в своих условиях. Граница применимости проходит по: {', '.join(keys)}.",
-                True, new_quality="область применимости")
-        elif rel is Relation.CONTRARY:
+                True, new_quality="область применимости", boundary_matrix=matrix, triad_coefficients=coeffs)
+                
+        elif rel in (Relation.CONTRARY, Relation.CONTRADICTORY):
             if bridge:
-                s = Synthesis(SynthesisKind.BRIDGE, rel, thesis, antithesis,
-                              f"Крайности сняты в единстве: {bridge}", True, new_quality=bridge)
-            else:
-                s = Synthesis(SynthesisKind.BRIDGE, rel, thesis, antithesis,
-                              "Между крайностями возможно третье, но оно не названо.", False,
-                              open_tasks=["Назвать единство, стороной которого является каждая крайность "
-                                          "(новое качество, которого нет у частей)."])
-        else:  # CONTRADICTORY
-            if bridge:
-                s = Synthesis(SynthesisKind.BRIDGE, rel, thesis, antithesis,
-                              f"Противоречие снято уточнением условий/смысла: {bridge}", True, new_quality=bridge)
-            else:
-                strong, weak = (thesis, antithesis) if _strength(thesis) >= _strength(antithesis) else (antithesis, thesis)
+                # Синтез найден (Третье единство) -> Восстановление эталона
                 s = Synthesis(
-                    SynthesisKind.PROVISIONAL, rel, thesis, antithesis,
-                    f"Предварительно удерживается: «{strong.text()}» (модальность {strong.modality.name}, "
-                    f"достоверность {strong.credibility:.2f}); «{weak.text()}» — под сомнением.", False,
-                    open_tasks=["Проверить достоверность обоих суждений по обратной связи.",
-                                "Найти различающее условие (тогда противоречие станет разделением по условиям)."])
+                    SynthesisKind.BRIDGE, rel, thesis, antithesis,
+                    f"Противоречие снято через новое качество (Единство): «{bridge}».",
+                    True, new_quality=bridge, boundary_matrix=matrix, triad_coefficients=coeffs)
+            else:
+                # Критический затык: противоречие ОТКРЫТО. Системный сбой.
+                # Накапливается паразитное двоецентрие (Дьявол/Dia-Vol). Зажимаем КОСМОС, выводим ХАОС на максимум.
+                coeffs["logos_weight"] = 10.0
+                coeffs["chaos_weight"] = 88.0  # Экстренное требование аналитической мыследеятельности
+                coeffs["cosmos_tolerance"] = 1.0  # Допуск дрейфа сужается до предела
+                
+                tasks = [f"Найти синтезирующий мост (bridge) для предикатов и пограничной матрицы: {list(matrix.keys())}"]
+                s = Synthesis(
+                    SynthesisKind.BRIDGE, rel, thesis, antithesis,
+                    "Система заблокирована противоречием. Требуется внесение нового качества оператором.",
+                    False, open_tasks=tasks, boundary_matrix=matrix, triad_coefficients=coeffs)
+                    
         self.ledger.append(s)
         return s
 
-    def to_json(self) -> str:
-        return json.dumps([s.to_dict() for s in self.ledger], ensure_ascii=False, indent=2)
+
+if __name__ == "__main__":
+    # Демонстрация комбинаторного поиска антитезисов и расчета пограничной матрицы
+    print("=== Тестирование ФДЛ-ядра НОВЕЯ ===")
+    
+    # Регистрируем противоположность предикатов
+    reg = ContraryRegistry([("централизована", "децентрализована")])
+    cycle = DialecticCycle(contraries=reg)
+    
+    # Задаем Тезис (Координация на уровне страны) и Антитезис (Координация на уровне громады)
+    t = Judgement("координация", "централизована", conditions={"масштаб": "страна"}, credibility=0.8)
+    a = Judgement("координация", "децентрализована", conditions={"масштаб": "громада"}, credibility=0.7)
+    
+    print("\n1. Запуск цикла БЕЗ моста (Противоречие открыто):")
+    res_open = cycle.run(t, a)
+    print(res_open.render())
+    
+print("\n2. Запуск цикла С МОСТОМ (Внесение нового качества - Солидарная Сеть):")
+res_resolved = cycle.run(t, a, bridge="Децентрализованная Mesh-сеть 144 ячеек с единым Логосом нормирования")
+print(res_resolved.render())

@@ -204,3 +204,10 @@ if __name__ == "__main__":
         act.complete(3, payload="Расчет матрицы 144 ячеек", triad=my_triad, execution_effort=10.0)
     except OrderError as e:
         print(f"Перехват автомата: {e}")
+        # Балансируем Триаду искусственно согласно пропорции 49-49-2
+print("\nБалансировка векторов Триады оператором...")
+my_triad.effort[Role.CHAOS] = 49.0
+my_triad.effort[Role.COSMOS] = 2.0
+# Повторная попытка шага 3 после выравнивания баланса
+nxt_step = act.complete(3, payload="Расчет матрицы 144 ячеек", triad=my_triad, execution_effort=0.0)
+print(f"Шаг 3 успешно зафиксирован. Следующий шаг: {nxt_step.no} ({nxt_step.title})")

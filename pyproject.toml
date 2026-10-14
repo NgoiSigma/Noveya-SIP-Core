@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "noveya-sip-core"
+version = "0.2.0"
+description = "НОВЕЯ-СИП Core: формальная диалектическая логика и Оболочка СВЕТ в коде"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.scripts]
+noveya = "noveya.cli:main"
+
+[tool.setuptools]
+packages = ["noveya", "matrix_144"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

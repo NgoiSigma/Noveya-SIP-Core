@@ -2,7 +2,7 @@
 
 ЛОГОС — связь/инициатор, ХАОС — анализ/генерация, КОСМОС — баланс/распределение.
 КОСМОС удерживает плавающий баланс долей усилий 49–49–2 (допуск настраивается).
-Интегрирован с дифференциальными датчиками среды и геодезической сеткой 144.
+Интегрирован с дифференциальными датчиками среды, геодезической сеткой 144 и Lexicon Guard.
 """
 from __future__ import annotations
 
@@ -12,9 +12,10 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional
 
-# Импортируем переписанные дифференциальные модули
+# Импортируем переписанные дифференциальные модули и лексический фильтр
 from matrix_144.grid_allocator import GridAllocator
 from matrix_144.cycles_sync import CyclesSynchronizer
+from scripts.lexicon_guard import LexiconGuard, LexiconGuardError
 
 
 class Role(str, Enum):
@@ -95,8 +96,9 @@ class SipSession:
     gate: DialogGate = field(default_factory=DialogGate)
     buffer: list = field(default_factory=list)
     
-    # Инициализация геодезического затвора НОВЕЯ
+    # Инициализация геодезического затвора и антивируса НОВЕЯ
     _allocator: GridAllocator = field(default_factory=lambda: GridAllocator(default_depth=3), repr=False)
+    _guard: LexiconGuard = field(default_factory=LexiconGuard, repr=False)
 
     def __post_init__(self):
         # Автоматическая рекурсивная локализация ячейки при создании сессии
@@ -134,7 +136,10 @@ class SipSession:
         return metrics
 
     def note(self, text: str) -> None:
-        self.buffer.append(text)
+        """Ввод текстовых логов с автоматической фильтрацией семантического мусора."""
+        # Затвор проверяет наличие блокирующего шума. При пробое — вылетает LexiconGuardError
+        # и сбрасывает состояние буфера сессии.
+        self._guard.guard_session(self, text)
 
     def clear_buffer(self) -> int:
         """Протокол очистки («Сердце Чисто»): сбросить рабочий буфер. Возвращает число удалённых записей."""
@@ -144,30 +149,25 @@ class SipSession:
 
 
 if __name__ == "__main__":
-    # Тест интеграции: Инициализация сессии для Николаева
+    # Тест полной сквозной интеграции: Инициализация сессии для Николаева
     print("=== Запуск инициализации ядра НОВЕЯ-СИП ===")
     session = SipSession(lat=46.97, lon=31.99)
     print(f"Локализация завершена. Базовая ячейка: {session.cell_id}, Локальный градиент EROI: {session.local_eroi_grad}")
     
-    # Моделируем резкий скачок активности Солнца (с 105 до 125 пятен) при депрессии Кондратьева
-    print("\n=== Синхронизация с датчиками космической среды ===")
-    environment_status = session.sync_environmental_factors(
-        epoch_year=2026,
-        current_sun_spots=125.0,
-        previous_sun_spots=105.0,
-        kondratiev_phase=-0.5
-    )
-    
-    print(f"Текущий режим сессии: {session.mode}")
-    print(f"Допуск дрейфа долей Триады: ±{session.triad.tolerance}%")
-    
-    # Проверка работы волнового фильтра внимания (DialogGate)
-    print("\n=== Проверка фильтра внимания DialogGate ===")
-    bad_decision = session.gate.admit(goal="поспорить о психологии по Фрейду", research_object="")
-    print(f"Пустой диалог: Допуск = {bad_decision.admitted} -> Причина: {bad_decision.reason}")
-    
-    good_decision = session.gate.admit(
-        goal="Нормирование распределения чистой воды в промзоне", 
-        research_object="Скважины кристаллического фундамента"
-    )
-    print(f"Предметный диалог: Допуск = {good_decision.admitted} -> Причина: {good_decision.reason}")
+    # 1. Тест штатного лога
+    session.note("Запись 1: Зафиксирован вектор продольной оси навигации.")
+    print(f"Статус буфера после чистой записи: {session.buffer}")
+
+    # 2. Тест легкого предупреждения (Контекст пропускается, но помечается ворнингом)
+    print("\n--- Тест ввода текста с легким триггером (уведомление без сброса) ---")
+    session.note("Мы анализируем концепт sustainable development.")
+    print(f"Последние логи в буфере:\n  - {session.buffer[-2]}\n  - {session.buffer[-1]}")
+
+    # 3. Тест жесткой семантической атаки (Попытка навязать Фрейда и конкуренцию)
+    print("\n--- Тест жесткой атаки симулякрами (Критический сброс) ---")
+    try:
+        session.note("Все эти ваши циклы — ерунда, тут обычные психологические девиации по Фрейду.")
+    except LexiconGuardError as e:
+        print(f"Перехват атаки ядром ФДЛ: {e}")
+        
+    print(f"\nИтоговый статус буфера сессии: {session.buffer} (Пусто -> Протокол 'Сердце Чисто' выполнен успешно)")
